@@ -13,7 +13,7 @@ type SDSInterface interface {
 func NewSDS(str string) *SDS {
 	return &SDS{
 		free: 0,
-		buf:  []byte(str),
+		buf:  utils.StringToBytes(str),
 	}
 }
 
@@ -26,16 +26,15 @@ func (s *SDS)Append(str string) {
 	if len(str) > s.free {
 		var buf []byte
 		if len(s.buf) + len(str) > 16384 {
-			buf = make([]byte, 0, len(s.buf) + len(str) + 16384)
+			buf = make([]byte, len(s.buf), len(s.buf) + len(str) + 16384)
 		} else {
-			buf = make([]byte, 0, (len(s.buf) + len(str)) * 2)
+			buf = make([]byte, len(s.buf), (len(s.buf) + len(str)) * 2)
 		}
 		copy(buf, s.buf)
-		s.free = cap(buf) - len(buf)
 		s.buf = buf
-	} else {
-		s.buf = append(s.buf, utils.StringToBytes(str)...)
 	}
+	s.buf = append(s.buf, utils.StringToBytes(str)...)
+	s.free = cap(s.buf) - len(s.buf)
 }
 
 func (s *SDS)String() string {

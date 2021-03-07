@@ -13,5 +13,5 @@ func StringToBytes(str string) (bytes []byte) {
 }
 
 func BytesToString(bytes *[]byte) string {
-	return *(*string)(unsafe.Pointer(&bytes))
+	return *(*string)(unsafe.Pointer(bytes))
 }
