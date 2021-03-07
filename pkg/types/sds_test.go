@@ -1,7 +1,6 @@
 package types
 
 import (
-	"strconv"
 	"testing"
 )
 
@@ -16,13 +15,13 @@ func TestSDS(t *testing.T) {
 func BenchmarkSDS(b *testing.B) {
 	str := NewSDS("")
 	for i := 0; i < b.N; i++ {
-		str.Append(strconv.Itoa(i))
+		str.Append("010101")
 	}
 }
 
 func BenchmarkString(b *testing.B) {
 	var str string
 	for i := 0; i < b.N; i++ {
-		str += strconv.Itoa(i)
+		str += "010101"
 	}
 }
