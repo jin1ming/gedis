@@ -4,16 +4,16 @@ import (
 	"testing"
 )
 
-func TestSDS(t *testing.T) {
-	s := NewSDS("0")
+func TestSds(t *testing.T) {
+	s := NewSds("0")
 	s.Append("123")
 	if s.String() != "0123" {
 		t.FailNow()
 	}
 }
 
-func BenchmarkSDS(b *testing.B) {
-	str := NewSDS("")
+func BenchmarkSds(b *testing.B) {
+	str := NewSds("")
 	for i := 0; i < b.N; i++ {
 		str.Append("010101")
 	}

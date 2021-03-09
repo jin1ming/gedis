@@ -4,20 +4,6 @@ import (
 	"reflect"
 )
 
-type listNodeInterface interface {}
-
-type listInterface interface {
-	Length() int
-	AddNodeHead(value interface{})
-	AddNodeTail(value interface{})
-	InsertNode(oldNode *listNodeInterface, value interface{}, after bool)
-	DelNode(value interface{})
-	SearchKey(key interface{}) *listInterface
-	Index(index int64) *listInterface
-	RotateTailToHead()
-	RotateHeadToTail()
-	Join(o *listInterface)
-}
 
 type ListNode struct {
 	Prev *ListNode
@@ -58,8 +44,9 @@ func (l *List)AddNodeTail(value interface{}) {
 
 	if l.Tail != nil {
 		node.Prev.Next = node
+		l.Tail = node
 	}
-	if l.Len == 0{
+	if l.Len == 0 {
 		l.Head = node
 	}
 	l.Len++
@@ -136,7 +123,7 @@ func (l *List)Index(index int64) *ListNode {
 		}
 	} else {
 		node = l.Head
-		for node != nil {
+		for node != nil && index > 0 {
 			node = node.Next
 			index--
 		}
