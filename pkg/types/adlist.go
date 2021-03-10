@@ -4,24 +4,23 @@ import (
 	"reflect"
 )
 
-
 type ListNode struct {
-	Prev *ListNode
-	Next *ListNode
+	Prev  *ListNode
+	Next  *ListNode
 	Value interface{}
 }
 
 type List struct {
 	Head *ListNode
 	Tail *ListNode
-	Len uint64
+	Len  uint64
 }
 
-func (l *List)Length() uint64 {
+func (l *List) Length() uint64 {
 	return l.Len
 }
 
-func (l *List)AddNodeHead(value interface{}) {
+func (l *List) AddNodeHead(value interface{}) {
 	node := &ListNode{
 		Prev:  nil,
 		Next:  l.Head,
@@ -35,7 +34,7 @@ func (l *List)AddNodeHead(value interface{}) {
 	l.Len++
 }
 
-func (l *List)AddNodeTail(value interface{}) {
+func (l *List) AddNodeTail(value interface{}) {
 	node := &ListNode{
 		Prev:  l.Tail,
 		Next:  nil,
@@ -52,7 +51,7 @@ func (l *List)AddNodeTail(value interface{}) {
 	l.Len++
 }
 
-func (l *List)InsertNode(oldNode *ListNode, value interface{}, after bool) {
+func (l *List) InsertNode(oldNode *ListNode, value interface{}, after bool) {
 	node := &ListNode{
 		Prev:  nil,
 		Next:  nil,
@@ -83,7 +82,7 @@ func (l *List)InsertNode(oldNode *ListNode, value interface{}, after bool) {
 	l.Len++
 }
 
-func (l *List)DelNode(node *ListNode) {
+func (l *List) DelNode(node *ListNode) {
 	if node.Prev != nil {
 		node.Prev.Next = node.Next
 	} else {
@@ -99,7 +98,7 @@ func (l *List)DelNode(node *ListNode) {
 	l.Len--
 }
 
-func (l *List)SearchKey(key interface{}) *ListNode {
+func (l *List) SearchKey(key interface{}) *ListNode {
 	iter := l.Head
 
 	for iter != nil {
@@ -111,7 +110,7 @@ func (l *List)SearchKey(key interface{}) *ListNode {
 	return nil
 }
 
-func (l *List)Index(index int64) *ListNode {
+func (l *List) Index(index int64) *ListNode {
 	var node *ListNode
 
 	if index < 0 {
@@ -132,7 +131,7 @@ func (l *List)Index(index int64) *ListNode {
 	return node
 }
 
-func (l *List)RotateHeadToTail() {
+func (l *List) RotateHeadToTail() {
 	if l.Len < 2 {
 		return
 	}
@@ -148,7 +147,7 @@ func (l *List)RotateHeadToTail() {
 	l.Tail = head
 }
 
-func (l *List)RotateTailToHead() {
+func (l *List) RotateTailToHead() {
 	if l.Len < 2 {
 		return
 	}
@@ -163,22 +162,22 @@ func (l *List)RotateTailToHead() {
 	l.Head = tail
 }
 
-func (l *List)Join(o *List) {
+func (l *List) Join(o *List) {
 	if o.Len == 0 {
 		return
 	}
-	
+
 	o.Head.Prev = l.Tail
-	
+
 	if l.Tail != nil {
 		l.Tail.Next = o.Head
 	} else {
 		l.Head = o.Head
 	}
-	
+
 	l.Tail = o.Tail
 	l.Len += o.Len
-	
+
 	o.Head, o.Tail = nil, nil
 	o.Len = 0
 	o.Len = 0

@@ -20,16 +20,16 @@ func NewSds(str string) *Sds {
 
 type Sds struct {
 	free int
-	buf []byte
+	buf  []byte
 }
 
-func (s *Sds)Append(str string) {
+func (s *Sds) Append(str string) {
 	if len(str) > s.free {
 		var buf []byte
-		if len(s.buf) + len(str) > 16384 {
-			buf = make([]byte, len(s.buf), len(s.buf) + len(str) + 16384)
+		if len(s.buf)+len(str) > 16384 {
+			buf = make([]byte, len(s.buf), len(s.buf)+len(str)+16384)
 		} else {
-			buf = make([]byte, len(s.buf), (len(s.buf) + len(str)) * 2)
+			buf = make([]byte, len(s.buf), (len(s.buf)+len(str))*2)
 		}
 		copy(buf, s.buf)
 		s.buf = buf
@@ -38,7 +38,7 @@ func (s *Sds)Append(str string) {
 	s.free = cap(s.buf) - len(s.buf)
 }
 
-func (s *Sds)String() string {
+func (s *Sds) String() string {
 	return utils.BytesToString(&s.buf)
 }
 

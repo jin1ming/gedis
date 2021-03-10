@@ -1,6 +1,9 @@
 package types
 
-import "testing"
+import (
+	. "github.com/smartystreets/goconvey/convey"
+	"testing"
+)
 
 func TestList(t *testing.T) {
 	list := &List{
@@ -8,27 +11,38 @@ func TestList(t *testing.T) {
 		Tail: nil,
 		Len:  0,
 	}
-	list.AddNodeHead(1)
-	list.AddNodeTail(2)
-	if list.Length() != 2 {
-		t.Fatal("list.Length() is ", list.Length())
-	}
-	if list.Head.Value != 1 {
-		t.Fatal("list.Head.Value is ", list.Index(2).Value)
-	}
-	if list.Tail.Value != 2 {
-		t.Fatal("list.Tail.Value is ", list.Tail.Value)
-	}
-	list.InsertNode(list.Head.Next, 5, false)
-	if list.Index(2).Value != 2 {
-		t.Fatal("list.Index(2).Value is", list.Index(2).Value)
-	}
-	list.RotateHeadToTail()
-	if list.Tail.Value != 1 {
-		t.Fatal("list.Tail.Value is ", list.Tail.Value)
-	}
-	list.RotateTailToHead()
-	if list.Tail.Value != 2 {
-		t.Fatal("list.Tail.Value", list.Tail.Value)
-	}
+
+	Convey("AddNodeHead", t, func() {
+		list.AddNodeHead(1)
+		So(list.Tail.Value, ShouldEqual, 1)
+	})
+
+	Convey("AddNodeTail", t, func() {
+		list.AddNodeTail(2)
+		So(list.Head.Value, ShouldEqual, 1)
+		So(list.Tail.Value, ShouldEqual, 2)
+		So(list.Len, ShouldEqual, 2)
+	})
+
+	Convey("Index", t, func() {
+		So(list.Index(2), ShouldEqual, nil)
+		So(list.Index(1).Value, ShouldEqual, 2)
+	})
+
+	Convey("InsertNode", t, func() {
+		list.InsertNode(list.Head.Next, 5, true)
+		So(list.Index(2).Value, ShouldEqual, 5)
+	})
+
+	Convey("RotateHeadToTail", t, func() {
+		list.RotateHeadToTail()
+		So(list.Head.Value, ShouldEqual, 2)
+		So(list.Tail.Value, ShouldEqual, 1)
+	})
+
+	Convey("RotateTailToHead", t, func() {
+		list.RotateTailToHead()
+		So(list.Head.Value, ShouldEqual, 1)
+		So(list.Tail.Value, ShouldEqual, 5)
+	})
 }
