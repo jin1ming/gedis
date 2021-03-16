@@ -1,4 +1,4 @@
-package types
+package data_struct
 
 type Dict struct {
 	d map[string]interface{}

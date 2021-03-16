@@ -1,4 +1,4 @@
-package types
+package data_struct
 
 import (
 	. "github.com/smartystreets/goconvey/convey"
