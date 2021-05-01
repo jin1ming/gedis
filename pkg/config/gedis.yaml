@@ -1,0 +1,18 @@
+base:
+  bind: 127.0.0.1
+  port: 6379
+  maxClients: 1
+  pidFile:
+  logFile:
+  logLevel: debug
+  dbFileName: gedis.db
+  dbFileDIr: ~/.redis
+  maxMemory: 4096
+masterSlaveMode:
+  slaveOf:
+  masterAuth:
+  slaveReadOnly: true
+appendMode:
+  appendOnly: true
+  appendFileName:
+  appendFsync:

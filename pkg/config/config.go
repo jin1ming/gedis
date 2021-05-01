@@ -2,27 +2,27 @@ package config
 
 import (
 	"github.com/jin1ming/Gedis/pkg/utils"
+	"gopkg.in/yaml.v2"
 	"os"
 	"path/filepath"
 	"sync"
 )
 
 const (
-	DefaultConfigName = "gedis.conf"
+	DefaultConfigName = "gedis.yaml"
 	DefaultConfigDIr = ".gedis"
 )
 
 var (
-	initConfigDIr = new(sync.Once)
+	initConfigDir = new(sync.Once)
 	configDir	string
-	homeDir		string
 )
 
 func setConfigDir() {
 	if configDir != "" {
 		return
 	}
-	configDir = os.Getenv("GEDIS_CONFIg")
+	configDir = os.Getenv("GEDIS_CONFIG")
 	if configDir == "" {
 		configDir = filepath.Join(utils.GetHomeDir(), DefaultConfigDIr)
 	}
@@ -30,18 +30,29 @@ func setConfigDir() {
 
 func resetConfigDir() {
 	configDir = ""
-	initConfigDIr = new(sync.Once)
+	initConfigDir = new(sync.Once)
 }
 
 func Dir() string {
-	initConfigDIr.Do(setConfigDir)
+	initConfigDir.Do(setConfigDir)
 	return configDir
 }
 
-func SetDir(dir string) {
-	configDir = filepath.Clean(dir)
-}
+func LoadConfig(configPath string) (*Config, error) {
+	if configPath == "" {
+		configDir = Dir()
+		configPath = filepath.Join(configDir, DefaultConfigName)
+	}
+	configPath = filepath.Clean(configPath)
 
-func Load(configDir string) () {
-
+	cfg := &Config{}
+	if file, err := os.Open(configPath); err != nil {
+		return nil, err
+	} else {
+		err = yaml.NewDecoder(file).Decode(cfg)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return cfg, nil
 }
