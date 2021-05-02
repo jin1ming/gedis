@@ -15,7 +15,8 @@ const (
 
 var (
 	initConfigDir = new(sync.Once)
-	configDir	string
+	configDir		string
+	serverConfig	*Config
 )
 
 func setConfigDir() {
@@ -38,7 +39,7 @@ func Dir() string {
 	return configDir
 }
 
-func LoadConfig(configPath string) (*Config, error) {
+func LoadConfig(configPath string) error {
 	if configPath == "" {
 		configDir = Dir()
 		configPath = filepath.Join(configDir, DefaultConfigName)
@@ -47,12 +48,17 @@ func LoadConfig(configPath string) (*Config, error) {
 
 	cfg := &Config{}
 	if file, err := os.Open(configPath); err != nil {
-		return nil, err
+		return err
 	} else {
 		err = yaml.NewDecoder(file).Decode(cfg)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
-	return cfg, nil
+	serverConfig = cfg
+	return nil
+}
+
+func GetConfig() *Config {
+	return serverConfig
 }

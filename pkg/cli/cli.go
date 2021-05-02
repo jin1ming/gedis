@@ -1,24 +1,22 @@
 package cli
 
 import (
-	"github.com/jin1ming/Gedis/pkg/client"
 	"github.com/jin1ming/Gedis/pkg/config"
 )
 
 type GedisCli struct {
 	config     *config.Config
-	client     []*client.Client
 	ServerInfo *ServerInfo
 	clientInfo []*ClientInfo
 }
 
 func (cli *GedisCli) SetConfig(configPath string) error {
 	if cli.config == nil {
-		configTmp, err := config.LoadConfig(configPath)
+		err := config.LoadConfig(configPath)
 		if err != nil {
 			return err
 		}
-		cli.config = configTmp
+		cli.config = config.GetConfig()
 	}
 	return nil
 }

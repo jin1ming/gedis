@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"github.com/jin1ming/Gedis/pkg/cli"
+	"github.com/jin1ming/Gedis/pkg/config"
 	"os"
 	"runtime"
 	"strings"
@@ -26,6 +28,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	fmt.Println(config.GetConfig())
 
 	// TODO: 相关监听服务的启动
 
