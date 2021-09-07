@@ -1,6 +1,6 @@
 base:
-  bind: 127.0.0.1
-  port: 6379
+  bind: 0.0.0.0
+  port: 6380
   maxClients: 1
   pidFile:
   logFile:
