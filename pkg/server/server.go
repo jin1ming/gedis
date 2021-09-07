@@ -1,12 +1,14 @@
 package server
 
 import (
+	"github.com/RussellLuo/timingwheel"
 	"github.com/jin1ming/Gedis/pkg/config"
 	"github.com/tidwall/redcon"
 	"log"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 type CmdBuffer struct {
@@ -21,6 +23,7 @@ type Server struct {
 	addr		string
 	buffer		chan CmdBuffer
 	cmd 		map[string]Cmd
+	timingWheel *timingwheel.TimingWheel
 }
 
 type Cmd struct {
@@ -89,6 +92,35 @@ func (s *Server) registerCmds() {
 			conn.WriteBulk(val)
 		}
 	})
+	s.registerCmd([]string{"expire"}, 3, 3, func(conn redcon.Conn, args [][]byte) {
+		_, ok := items[string(args[1])]
+		if !ok {
+			conn.WriteInt(0)
+			return
+		}
+		t, _ := strconv.Atoi(string(args[2]))
+		s.RunAfter(time.Duration(t) * time.Second, func() {
+			delete(items, string(args[1]))
+		})
+		conn.WriteInt(1)
+	})
+	s.registerCmd([]string{"setex"}, 4, 4, func(conn redcon.Conn, args [][]byte) {
+		items[string(args[1])] = args[3]
+		t, _ := strconv.Atoi(string(args[2]))
+		s.RunAfter(time.Duration(t) * time.Second, func() {
+			delete(items, string(args[1]))
+		})
+		conn.WriteString("OK")
+	})
+	s.registerCmd([]string{"setnx"}, 3, 3, func(conn redcon.Conn, args [][]byte) {
+		_, ok := items[string(args[1])]
+		if ok {
+			conn.WriteInt(0)
+			return
+		}
+		items[string(args[1])] = args[2]
+		conn.WriteInt(1)
+	})
 	s.registerCmd([]string{"del"}, 2, 2, func(conn redcon.Conn, args [][]byte) {
 		mu.Lock()
 		_, ok := items[string(args[1])]
@@ -119,6 +151,7 @@ func (s *Server) ExecCommand(conn redcon.Conn, cmd redcon.Command) {
 	c, ok := s.cmd[strings.ToLower(string(cmd.Args[0]))]
 	if !ok {
 		conn.WriteError("ERR unknown command '" + string(cmd.Args[0]) + "'")
+		return
 	}
 	if c.argvMin > len(cmd.Args) || (c.argvMax != 0 && c.argvMax < len(cmd.Args)) {
 		conn.WriteError("ERR wrong number of arguments for '" + string(cmd.Args[0]) + "' command")
@@ -129,8 +162,10 @@ func (s *Server) ExecCommand(conn redcon.Conn, cmd redcon.Command) {
 
 func (s *Server) Start()  {
 	log.Printf("started server at %s", s.addr)
+	s.timingWheel = timingwheel.NewTimingWheel( 1 * time.Second, 60)
+	s.timingWheel.Start()
+	defer s.timingWheel.Stop()
 	s.registerCmds()
-
 	err := redcon.ListenAndServe(s.addr,
 		s.ExecCommand,
 		func(conn redcon.Conn) bool {
@@ -147,3 +182,13 @@ func (s *Server) Start()  {
 		log.Fatal(err)
 	}
 }
+
+// RunAfter 延时任务
+func (s *Server) RunAfter(d time.Duration, f func()) *timingwheel.Timer {
+	return s.timingWheel.AfterFunc(d, f)
+}
+
+//// RunEvery 定时任务
+//func (s *Server) RunEvery(d time.Duration, f func()) *timingwheel.Timer {
+//	return s.timingWheel.ScheduleFunc(&everyScheduler{Interval: d}, f)
+//}
