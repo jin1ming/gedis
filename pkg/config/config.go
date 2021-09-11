@@ -10,13 +10,13 @@ import (
 
 const (
 	DefaultConfigName = "gedis.yaml"
-	DefaultConfigDIr = ".gedis"
+	DefaultConfigDIr  = ".gedis"
 )
 
 var (
 	initConfigDir = new(sync.Once)
-	configDir		string
-	serverConfig	*Config
+	configDir     string
+	serverConfig  *Config
 )
 
 func setConfigDir() {

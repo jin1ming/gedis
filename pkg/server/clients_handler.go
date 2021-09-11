@@ -7,15 +7,15 @@ import (
 )
 
 type Client struct {
-	conn		net.Conn
-	mu			sync.Mutex
-	waiting		sync.WaitGroup
-	bufWrite	chan []byte
+	conn     net.Conn
+	mu       sync.Mutex
+	waiting  sync.WaitGroup
+	bufWrite chan []byte
 }
 
 func NewClient(conn net.Conn) *Client {
 	return &Client{
-		conn:    conn,
+		conn: conn,
 	}
 }
 
@@ -26,7 +26,7 @@ func (c *Client) Close() {
 		c.waiting.Wait()
 	}()
 	select {
-	case <- ch:
+	case <-ch:
 		break
 	case <-time.After(8 * time.Second):
 		break

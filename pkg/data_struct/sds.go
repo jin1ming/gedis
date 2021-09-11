@@ -8,7 +8,7 @@ import (
 type SdsInterface interface {
 	Append(s string)
 	//Free()
-	ToString() string
+	String() string
 }
 
 func NewSds(str string) *Sds {

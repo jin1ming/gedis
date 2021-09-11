@@ -45,7 +45,7 @@ type zRangeSpec struct {
 
 /* Struct to hold an inclusive/exclusive range spec by lexicographic comparison. */
 type zLexRangeSpec struct {
-	min, max Sds
+	min, max     Sds
 	minEx, maxEx bool
 }
 
@@ -416,7 +416,6 @@ func (zsl *zSkipList) DeleteRangeByLex(r *zLexRangeSpec, d *Dict) uint64 {
 	return removed
 }
 
-
 /* Delete all the elements with rank between start and end from the skiplist.
  * Start and end are inclusive. Note that start and end need to be 1-based */
 func (zsl *zSkipList) DeleteRangeByRank(start, end uint64, d *Dict) uint64 {
@@ -426,7 +425,7 @@ func (zsl *zSkipList) DeleteRangeByRank(start, end uint64, d *Dict) uint64 {
 
 	x := zsl.header
 	for i = zsl.level - 1; i >= 0; i-- {
-		for x.level[i].forward != nil && (traversed + x.level[i].span < start) {
+		for x.level[i].forward != nil && (traversed+x.level[i].span < start) {
 			traversed += x.level[i].span
 			x = x.level[i].forward
 		}
@@ -477,7 +476,7 @@ func (zsl *zSkipList) GetElementByRank(rank uint64) *zSkipListNode {
 
 	x := zsl.header
 	for i = zsl.level - 1; i >= 0; i-- {
-		for x.level[i].forward != nil && (traversed + x.level[i].span) <= rank {
+		for x.level[i].forward != nil && (traversed+x.level[i].span) <= rank {
 			traversed += x.level[i].span
 			x = x.level[i].forward
 		}

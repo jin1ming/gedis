@@ -26,11 +26,11 @@ func (cli *GedisCli) GetConfig() *config.Config {
 }
 
 type ServerInfo struct {
-	OSType          string
-	BuildVersion	string
+	OSType       string
+	BuildVersion string
 }
 
 type ClientInfo struct {
-	OSType          string
-	DefaultVersion  string
+	OSType         string
+	DefaultVersion string
 }
