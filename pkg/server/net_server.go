@@ -42,13 +42,6 @@ func New() *Server {
 	return s
 }
 
-//func (s *Server) Serve() {
-//	dbMap := db.GetDB().DataMap
-//	for {
-//
-//	}
-//}
-
 func (s *Server) Start() {
 	log.Printf("started server at %s", s.addr)
 	s.timingWheel = timingwheel.NewTimingWheel(1*time.Second, 60)
@@ -59,12 +52,12 @@ func (s *Server) Start() {
 		s.ExecCommand,
 		func(conn redcon.Conn) bool {
 			// Use this function to accept or deny the connection.
-			// log.Printf("accept: %s", conn.RemoteAddr())
+			log.Printf("accept: %s", conn.RemoteAddr())
 			return true
 		},
 		func(conn redcon.Conn, err error) {
 			// This is called when the connection has been closed
-			// log.Printf("closed: %s, err: %v", conn.RemoteAddr(), err)
+			log.Printf("closed: %s, err: %v", conn.RemoteAddr(), err)
 		},
 	)
 	if err != nil {
