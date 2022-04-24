@@ -1,7 +1,7 @@
 package server
 
 import (
-	"github.com/RussellLuo/timingwheel"
+	"context"
 	"github.com/jin1ming/Gedis/pkg/config"
 	"github.com/tidwall/redcon"
 	"log"
@@ -15,13 +15,13 @@ type CmdBuffer struct {
 }
 
 type Server struct {
-	scheme      string
-	host        string
-	protocol    string
-	addr        string
-	buffer      chan CmdBuffer
-	cmd         map[string]Cmd
-	timingWheel *timingwheel.TimingWheel
+	scheme    string
+	host      string
+	protocol  string
+	addr      string
+	buffer    chan CmdBuffer
+	cmd       map[string]Cmd
+	aofBuffer chan<- redcon.Command
 }
 
 type Cmd struct {
@@ -30,47 +30,52 @@ type Cmd struct {
 	argvMax int
 }
 
-func New() *Server {
+func New(ab chan<- redcon.Command) *Server {
 	s := &Server{
-		scheme:   "gedis",
-		host:     "127.0.0.1",
-		protocol: "resp3",
-		addr:     config.GetConfig().Base.Bind + ":" + strconv.Itoa(config.GetConfig().Base.Port),
-		buffer:   make(chan CmdBuffer, 0),
-		cmd:      make(map[string]Cmd),
+		scheme:    "gedis",
+		host:      "127.0.0.1",
+		protocol:  "resp3",
+		addr:      config.GetConfig().Base.Bind + ":" + strconv.Itoa(config.GetConfig().Base.Port),
+		buffer:    make(chan CmdBuffer, 0),
+		cmd:       make(map[string]Cmd),
+		aofBuffer: ab,
 	}
 	return s
 }
 
-func (s *Server) Start() {
+func (s *Server) Start(ctx context.Context) {
 	log.Printf("started server at %s", s.addr)
-	s.timingWheel = timingwheel.NewTimingWheel(1*time.Second, 60)
-	s.timingWheel.Start()
-	defer s.timingWheel.Stop()
+
 	s.registerCmds()
-	err := redcon.ListenAndServe(s.addr,
-		s.ExecCommand,
-		func(conn redcon.Conn) bool {
-			// Use this function to accept or deny the connection.
+
+	rs := redcon.NewServerNetwork("tcp", s.addr,
+		func(conn redcon.Conn, cmd redcon.Command) {
+			if s.aofBuffer != nil {
+				s.aofBuffer <- cmd
+			}
+			s.ExecCommand(conn, cmd)
+		}, func(conn redcon.Conn) bool {
 			log.Printf("accept: %s", conn.RemoteAddr())
 			return true
-		},
-		func(conn redcon.Conn, err error) {
-			// This is called when the connection has been closed
+		}, func(conn redcon.Conn, err error) {
 			log.Printf("closed: %s, err: %v", conn.RemoteAddr(), err)
-		},
-	)
+		})
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				log.Println("NetServer is closing...")
+				_ = rs.Close()
+				return
+			default:
+				time.Sleep(1 * time.Second)
+			}
+		}
+	}()
+
+	err := rs.ListenAndServe()
 	if err != nil {
 		log.Fatal(err)
 	}
 }
-
-// RunAfter 延时任务
-func (s *Server) RunAfter(d time.Duration, f func()) *timingwheel.Timer {
-	return s.timingWheel.AfterFunc(d, f)
-}
-
-//// RunEvery 定时任务
-//func (s *Server) RunEvery(d time.Duration, f func()) *timingwheel.Timer {
-//	return s.timingWheel.ScheduleFunc(&everyScheduler{Interval: d}, f)
-//}

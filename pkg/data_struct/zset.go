@@ -2,5 +2,5 @@ package data_struct
 
 type zSet struct {
 	dict *Set
-	zsl  *zSkipList
+	zsl  *ZSkipList
 }

@@ -4,6 +4,7 @@ import (
 	"container/list"
 	"github.com/jin1ming/Gedis/pkg/data_struct"
 	"github.com/jin1ming/Gedis/pkg/db"
+	"github.com/jin1ming/Gedis/pkg/event"
 	"github.com/tidwall/redcon"
 	"strconv"
 	"strings"
@@ -36,12 +37,14 @@ func (s *Server) ExecCommand(conn redcon.Conn, cmd redcon.Command) {
 		conn.WriteError("ERR wrong number of arguments for '" + string(cmd.Args[0]) + "' command")
 		return
 	}
+
 	c.f(conn, cmd.Args)
 }
 
 func (s *Server) registerCmds() {
 	var mu sync.RWMutex
 	db := db.GetDB()
+	tw := event.GetGlobalTimingWheel()
 	strMap := db.StrMap
 	listMap := db.ListMap
 	setMap := db.SetMap
@@ -75,7 +78,7 @@ func (s *Server) registerCmds() {
 			return
 		}
 		t, _ := strconv.Atoi(string(args[2]))
-		s.RunAfter(time.Duration(t)*time.Second, func() {
+		tw.AfterFunc(time.Duration(t)*time.Second, func() {
 			delete(strMap, string(args[1]))
 		})
 		conn.WriteInt(1)
@@ -83,7 +86,7 @@ func (s *Server) registerCmds() {
 	s.registerCmd([]string{"setex"}, 4, 4, func(conn redcon.Conn, args [][]byte) {
 		strMap[string(args[1])] = args[3]
 		t, _ := strconv.Atoi(string(args[2]))
-		s.RunAfter(time.Duration(t)*time.Second, func() {
+		tw.AfterFunc(time.Duration(t)*time.Second, func() {
 			delete(strMap, string(args[1]))
 		})
 		conn.WriteString("OK")

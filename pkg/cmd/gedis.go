@@ -6,9 +6,13 @@ import (
 	"github.com/jin1ming/Gedis/pkg/config"
 	"github.com/jin1ming/Gedis/pkg/ps"
 	"github.com/jin1ming/Gedis/pkg/server"
+	"github.com/tidwall/redcon"
+	"log"
 	"os"
+	"os/signal"
 	"runtime"
 	"strings"
+	"syscall"
 )
 
 var buildVersion = "0.0.1"
@@ -34,14 +38,24 @@ func main() {
 	}
 	cfg := config.GetConfig()
 
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGQUIT)
 	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		info := <-sigs
+		log.Println("Signal:", info)
+		cancel()
+	}()
 
+	var aofBuffer chan redcon.Command
 	if cfg.Append.AppendOnly {
-		go ps.AOFService{}.Start(ctx)
+		aofService := ps.NewAOFService()
+		aofBuffer = aofService.ChBuffer
+		aofService.LoadLocalData()
+		go aofService.Start(ctx)
 	}
 
-	s := server.New()
-	s.Start()
+	s := server.New(aofBuffer)
+	s.Start(ctx)
 
-	cancel() // TODO
 }

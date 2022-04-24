@@ -29,7 +29,7 @@ type zSkipListNode struct {
 	level []zSkipListLevel
 }
 
-type zSkipList struct {
+type ZSkipList struct {
 	// 只有第一层链表是双向链表
 	header, tail *zSkipListNode
 	Len          uint64
@@ -49,8 +49,8 @@ type zLexRangeSpec struct {
 	minEx, maxEx bool
 }
 
-func NewZSkipList() *zSkipList {
-	return &zSkipList{
+func NewZSkipList() *ZSkipList {
+	return &ZSkipList{
 		header: &zSkipListNode{
 			ele:      Sds{},
 			score:    0,
@@ -86,7 +86,7 @@ func RandomLevel() int {
 /* Insert a new node in the skiplist. Assumes the element does not already
  * exist (up to the caller to enforce that). The skiplist takes ownership
  * of the passed Sds string 'ele'. */
-func (zsl *zSkipList) Insert(score float64, ele Sds) *zSkipListNode {
+func (zsl *ZSkipList) Insert(score float64, ele Sds) *zSkipListNode {
 	update := make([]*zSkipListNode, ZSKIPLIST_MAXLEVEL)
 	var x *zSkipListNode
 	rank := make([]uint64, ZSKIPLIST_MAXLEVEL)
@@ -155,7 +155,7 @@ func (zsl *zSkipList) Insert(score float64, ele Sds) *zSkipListNode {
 
 /* Internal function used by Delete, DeleteRangeByScore and
  * DeleteRangeByRank. */
-func (zsl *zSkipList) deleteNode(x *zSkipListNode, update []*zSkipListNode) {
+func (zsl *ZSkipList) deleteNode(x *zSkipListNode, update []*zSkipListNode) {
 	var i int
 	for i = 0; i < zsl.level; i++ {
 		if update[i].level[i].forward == x {
@@ -184,7 +184,7 @@ func (zsl *zSkipList) deleteNode(x *zSkipListNode, update []*zSkipListNode) {
  * it is not freed (but just unlinked) and *node is set to the node pointer,
  * so that it is possible for the caller to reuse the node (including the
  * referenced SDS string at node->ele). */
-func (zsl *zSkipList) Delete(score float64, ele Sds) (bool, *zSkipListNode) {
+func (zsl *ZSkipList) Delete(score float64, ele Sds) (bool, *zSkipListNode) {
 	update := make([]*zSkipListNode, ZSKIPLIST_MAXLEVEL)
 	var node *zSkipListNode
 	var i int
@@ -222,7 +222,7 @@ func (zsl *zSkipList) Delete(score float64, ele Sds) (bool, *zSkipListNode) {
  * element, which is more costly.
  *
  * The function returns the updated element skiplist node pointer. */
-func (zsl *zSkipList) UpdateScore(curScore float64, ele Sds, newScore float64) *zSkipListNode {
+func (zsl *ZSkipList) UpdateScore(curScore float64, ele Sds, newScore float64) *zSkipListNode {
 	update := make([]*zSkipListNode, ZSKIPLIST_MAXLEVEL)
 	var x *zSkipListNode
 	var i int
@@ -298,7 +298,7 @@ func (spec *zLexRangeSpec) isLteMax(value Sds) bool {
 }
 
 /* Returns if there is a part of the zset is in range. */
-func (zsl *zSkipList) IsInRange(r *zRangeSpec) bool {
+func (zsl *ZSkipList) IsInRange(r *zRangeSpec) bool {
 	if r.min > r.max ||
 		(r.min == r.max && (r.minEx || r.maxEx)) {
 		return false
@@ -314,7 +314,7 @@ func (zsl *zSkipList) IsInRange(r *zRangeSpec) bool {
 	return true
 }
 
-func (zsl *zSkipList) IsInLexRange(r *zLexRangeSpec) bool {
+func (zsl *ZSkipList) IsInLexRange(r *zLexRangeSpec) bool {
 	cmp := SdsCompare(r.min, r.max)
 	if cmp > 0 || (cmp == 0 && (r.minEx || r.maxEx)) {
 		return false
@@ -332,7 +332,7 @@ func (zsl *zSkipList) IsInLexRange(r *zLexRangeSpec) bool {
 
 /* Find the first node that is contained in the specified range.
  * Returns NULL when no element is contained in the range. */
-func (zsl *zSkipList) GetFirstInRange(r *zRangeSpec) *zSkipListNode {
+func (zsl *ZSkipList) GetFirstInRange(r *zRangeSpec) *zSkipListNode {
 	var i int
 
 	if !zsl.IsInRange(r) {
@@ -360,7 +360,7 @@ func (zsl *zSkipList) GetFirstInRange(r *zRangeSpec) *zSkipListNode {
 
 /* Find the last node that is contained in the specified range.
  * Returns NULL when no element is contained in the range. */
-func (zsl *zSkipList) GetLastInRange(r *zRangeSpec) *zSkipListNode {
+func (zsl *ZSkipList) GetLastInRange(r *zRangeSpec) *zSkipListNode {
 	var i int
 
 	if !zsl.IsInRange(r) {
@@ -390,7 +390,7 @@ func (zsl *zSkipList) GetLastInRange(r *zRangeSpec) *zSkipListNode {
  * range->maxex). When inclusive a score >= min && score <= max is deleted.
  * Note that this function takes the reference to the hash table view of the
  * sorted set, in order to remove the elements from the hash table too. */
-func (zsl *zSkipList) DeleteRangeByLex(r *zLexRangeSpec, d *Dict) uint64 {
+func (zsl *ZSkipList) DeleteRangeByLex(r *zLexRangeSpec, d *Dict) uint64 {
 	update := make([]*zSkipListNode, ZSKIPLIST_MAXLEVEL)
 	var removed uint64
 	var i int
@@ -418,7 +418,7 @@ func (zsl *zSkipList) DeleteRangeByLex(r *zLexRangeSpec, d *Dict) uint64 {
 
 /* Delete all the elements with rank between start and end from the skiplist.
  * Start and end are inclusive. Note that start and end need to be 1-based */
-func (zsl *zSkipList) DeleteRangeByRank(start, end uint64, d *Dict) uint64 {
+func (zsl *ZSkipList) DeleteRangeByRank(start, end uint64, d *Dict) uint64 {
 	update := make([]*zSkipListNode, ZSKIPLIST_MAXLEVEL)
 	var traversed, removed uint64
 	var i int
@@ -449,7 +449,7 @@ func (zsl *zSkipList) DeleteRangeByRank(start, end uint64, d *Dict) uint64 {
  * Returns 0 when the element cannot be found, rank otherwise.
  * Note that the rank is 1-based due to the span of zsl->header to the
  * first element. */
-func (zsl *zSkipList) GetRank(score float64, ele Sds) uint64 {
+func (zsl *ZSkipList) GetRank(score float64, ele Sds) uint64 {
 	var rank uint64
 	var i int
 
@@ -470,7 +470,7 @@ func (zsl *zSkipList) GetRank(score float64, ele Sds) uint64 {
 }
 
 /* Finds an element by its rank. The rank argument needs to be 1-based. */
-func (zsl *zSkipList) GetElementByRank(rank uint64) *zSkipListNode {
+func (zsl *ZSkipList) GetElementByRank(rank uint64) *zSkipListNode {
 	var traversed uint64
 	var i int
 

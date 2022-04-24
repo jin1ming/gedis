@@ -6,19 +6,20 @@ import (
 )
 
 type DB struct {
-	StrMap  map[string][]byte
-	ListMap map[string]*list.List
-	SetMap  map[string]*data_struct.Set
+	StrMap       map[string][]byte
+	ListMap      map[string]*list.List
+	SetMap       map[string]*data_struct.Set
+	ZSkipListMap map[string]*data_struct.ZSkipList
 }
 
 var db *DB
 
 func init() {
-	// TODO: 持久化文件读取
 	db = new(DB)
 	db.StrMap = make(map[string][]byte)
 	db.ListMap = make(map[string]*list.List)
 	db.SetMap = make(map[string]*data_struct.Set)
+	db.ZSkipListMap = make(map[string]*data_struct.ZSkipList)
 }
 
 func GetDB() *DB {

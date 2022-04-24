@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"log"
 	"os"
 	"os/user"
 )
@@ -8,10 +9,11 @@ import (
 var HOMEDIR string
 
 func init() {
-	home := os.Getenv("HOME")
-	if home == "" {
+	HOMEDIR = os.Getenv("HOME")
+	if HOMEDIR == "" {
 		if u, err := user.Current(); err == nil {
 			HOMEDIR = u.HomeDir
+			log.Println(HOMEDIR)
 		}
 	}
 }

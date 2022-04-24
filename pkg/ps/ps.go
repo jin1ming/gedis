@@ -5,8 +5,8 @@ import (
 )
 
 type PersistentStorageService interface {
-	LoadData()
-	WriteLine(line string)
+	LoadLocalData()
+	work()
 	Start(ctx context.Context)
-	Stop()
+	stop()
 }
