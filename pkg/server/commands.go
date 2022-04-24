@@ -1,21 +1,16 @@
 package server
 
 import (
-	"container/list"
-	"github.com/jin1ming/Gedis/pkg/data_struct"
 	"github.com/jin1ming/Gedis/pkg/db"
-	"github.com/jin1ming/Gedis/pkg/event"
 	"github.com/tidwall/redcon"
-	"strconv"
 	"strings"
-	"sync"
-	"time"
 )
 
 func (s *Server) registerCmd(names []string, argcMin int, argcMax int,
-	f func(conn redcon.Conn, args [][]byte)) {
+	f0 func(args [][]byte), f func(conn redcon.Conn, result interface{})) {
 
 	c := Cmd{
+		f0:      f0,
 		f:       f,
 		argvMin: argcMin,
 		argvMax: argcMax,
@@ -37,34 +32,38 @@ func (s *Server) ExecCommand(conn redcon.Conn, cmd redcon.Command) {
 		conn.WriteError("ERR wrong number of arguments for '" + string(cmd.Args[0]) + "' command")
 		return
 	}
-
-	c.f(conn, cmd.Args)
+	if s.aofBuffer != nil {
+		s.aofBuffer <- cmd
+	}
+	c.f0(cmd.Args)
+	var result interface{}
+	if _, ok = s.returnCmd[string(cmd.Args[0])]; ok {
+		result = <-s.returnBuffer
+	}
+	c.f(conn, result)
 }
 
-func (s *Server) registerCmds() {
-	var mu sync.RWMutex
-	db := db.GetDB()
-	tw := event.GetGlobalTimingWheel()
-	strMap := db.StrMap
-	listMap := db.ListMap
-	setMap := db.SetMap
+func (s *Server) register() {
+	DB := db.GetDB()
 	var ps redcon.PubSub
-	s.registerCmd([]string{"ping"}, 0, 0, func(conn redcon.Conn, args [][]byte) {
+
+	s.registerCmd([]string{"ping"}, 0, 0, func(args [][]byte) {
+	}, func(conn redcon.Conn, result interface{}) {
 		conn.WriteString("PONG")
 	})
-	s.registerCmd([]string{"quit"}, 0, 0, func(conn redcon.Conn, args [][]byte) {
+	s.registerCmd([]string{"quit", "exit"}, 0, 0, func(args [][]byte) {
+	}, func(conn redcon.Conn, result interface{}) {
 		conn.WriteString("OK")
 	})
-	s.registerCmd([]string{"set"}, 3, 3, func(conn redcon.Conn, args [][]byte) {
-		mu.Lock()
-		strMap[string(args[1])] = args[2]
-		mu.Unlock()
+	s.registerCmd([]string{"set"}, 3, 3, func(args [][]byte) {
+		DB.Set(args...)
+	}, func(conn redcon.Conn, result interface{}) {
 		conn.WriteString("OK")
 	})
-	s.registerCmd([]string{"get"}, 2, 2, func(conn redcon.Conn, args [][]byte) {
-		mu.RLock()
-		val, ok := strMap[string(args[1])]
-		mu.RUnlock()
+	s.registerCmd([]string{"get"}, 2, 2, func(args [][]byte) {
+		conn
+	}, func(conn redcon.Conn, result interface{}) {
+		val, ok := DB.Get(args...)
 		if !ok {
 			conn.WriteNull()
 		} else {
@@ -72,45 +71,54 @@ func (s *Server) registerCmds() {
 		}
 	})
 	s.registerCmd([]string{"expire"}, 3, 3, func(conn redcon.Conn, args [][]byte) {
-		_, ok := strMap[string(args[1])]
-		if !ok {
-			conn.WriteInt(0)
-			return
-		}
-		t, _ := strconv.Atoi(string(args[2]))
-		tw.AfterFunc(time.Duration(t)*time.Second, func() {
-			delete(strMap, string(args[1]))
-		})
-		conn.WriteInt(1)
+		num := DB.Expire(args...)
+		conn.WriteInt(num)
 	})
 	s.registerCmd([]string{"setex"}, 4, 4, func(conn redcon.Conn, args [][]byte) {
-		strMap[string(args[1])] = args[3]
-		t, _ := strconv.Atoi(string(args[2]))
-		tw.AfterFunc(time.Duration(t)*time.Second, func() {
-			delete(strMap, string(args[1]))
-		})
+		DB.SetEx(args...)
 		conn.WriteString("OK")
 	})
 	s.registerCmd([]string{"setnx"}, 3, 3, func(conn redcon.Conn, args [][]byte) {
-		_, ok := strMap[string(args[1])]
-		if ok {
-			conn.WriteInt(0)
-			return
-		}
-		strMap[string(args[1])] = args[2]
-		conn.WriteInt(1)
+		num := DB.SetNx(args...)
+		conn.WriteInt(num)
 	})
 	s.registerCmd([]string{"del"}, 2, 2, func(conn redcon.Conn, args [][]byte) {
-		mu.Lock()
-		_, ok := strMap[string(args[1])]
-		delete(strMap, string(args[1]))
-		mu.Unlock()
-		if !ok {
-			conn.WriteInt(0)
+		num := DB.Del(args...)
+		conn.WriteInt(num)
+	})
+	s.registerCmd([]string{"rpush"}, 3, 0, func(conn redcon.Conn, args [][]byte) {
+		l := DB.RPush(args...)
+		conn.WriteInt(l)
+	})
+	s.registerCmd([]string{"llen"}, 2, 2, func(conn redcon.Conn, args [][]byte) {
+		l := DB.LLen(args...)
+		conn.WriteInt(l)
+	})
+	s.registerCmd([]string{"rpop", "lpop"}, 2, 2, func(conn redcon.Conn, args [][]byte) {
+		res := DB.RLPop(args...)
+		if res == nil {
+			conn.WriteNull()
 		} else {
-			conn.WriteInt(1)
+			conn.WriteBulk(res)
 		}
 	})
+	s.registerCmd([]string{"sadd"}, 3, 0, func(conn redcon.Conn, args [][]byte) {
+		num := DB.SAdd(args...)
+		conn.WriteInt(num)
+	})
+	s.registerCmd([]string{"smembers"}, 2, 2, func(conn redcon.Conn, args [][]byte) {
+		res := DB.SMembers(args...)
+		if res == nil {
+			conn.WriteNull()
+		} else {
+			conn.WriteAny(res)
+		}
+	})
+	s.registerCmd([]string{"sismember"}, 3, 3, func(conn redcon.Conn, args [][]byte) {
+		num := DB.SisMember(args...)
+		conn.WriteInt(num)
+	})
+	// TODO: 订阅模式待实现
 	s.registerCmd([]string{"publish"}, 3, 3, func(conn redcon.Conn, args [][]byte) {
 		conn.WriteInt(ps.Publish(string(args[1]), string(args[2])))
 	})
@@ -123,81 +131,5 @@ func (s *Server) registerCmds() {
 				ps.Subscribe(conn, string(args[i]))
 			}
 		}
-	})
-	s.registerCmd([]string{"rpush"}, 3, 0, func(conn redcon.Conn, args [][]byte) {
-		var l *list.List
-		if n, ok := listMap[string(args[1])]; ok {
-			l = n
-		} else {
-			l = list.New()
-			listMap[string(args[1])] = l
-		}
-		for i := 2; i < len(args); i++ {
-			l.PushBack(args[i])
-		}
-		conn.WriteInt(l.Len())
-	})
-	s.registerCmd([]string{"llen"}, 2, 2, func(conn redcon.Conn, args [][]byte) {
-		if n, ok := listMap[string(args[1])]; ok {
-			conn.WriteInt(n.Len())
-		} else {
-			conn.WriteInt(0)
-		}
-	})
-	s.registerCmd([]string{"rpop", "lpop"}, 2, 2, func(conn redcon.Conn, args [][]byte) {
-		var l *list.List
-		var ok bool
-		if l, ok = listMap[string(args[1])]; !ok {
-			conn.WriteNull()
-		}
-
-		var targetNode *list.Element
-		if string(args[0]) == "lpop" {
-			targetNode = l.Front()
-		} else {
-			targetNode = l.Back()
-		}
-
-		res := targetNode.Value.([]byte)
-		l.Remove(targetNode)
-		if l.Len() == 0 {
-			// TODO: 好像没起作用
-			delete(listMap, string(args[1]))
-		}
-		conn.WriteBulk(res)
-	})
-	s.registerCmd([]string{"sadd"}, 3, 0, func(conn redcon.Conn, args [][]byte) {
-		var set *data_struct.Set
-		var ok bool
-		if set, ok = setMap[string(args[1])]; !ok {
-			set = data_struct.NewSet()
-			setMap[string(args[1])] = set
-		}
-		repeatNum := 0
-		for i := 2; i < len(args); i++ {
-			if set.Has(string(args[i])) {
-				repeatNum++
-				continue
-			}
-			set.Add(string(args[i]))
-		}
-		conn.WriteInt(len(args) - 2 - repeatNum)
-	})
-	s.registerCmd([]string{"smembers"}, 2, 2, func(conn redcon.Conn, args [][]byte) {
-		var set *data_struct.Set
-		var ok bool
-		if set, ok = setMap[string(args[1])]; !ok {
-			conn.WriteNull()
-		}
-		conn.WriteAny(set.GetAllBytes())
-	})
-	s.registerCmd([]string{"sismember"}, 3, 3, func(conn redcon.Conn, args [][]byte) {
-		if set, ok := setMap[string(args[1])]; ok {
-			if set.Has(string(args[2])) {
-				conn.WriteInt(1)
-				return
-			}
-		}
-		conn.WriteInt(0)
 	})
 }

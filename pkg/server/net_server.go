@@ -15,22 +15,26 @@ type CmdBuffer struct {
 }
 
 type Server struct {
-	scheme    string
-	host      string
-	protocol  string
-	addr      string
-	buffer    chan CmdBuffer
-	cmd       map[string]Cmd
-	aofBuffer chan<- redcon.Command
+	scheme       string
+	host         string
+	protocol     string
+	addr         string
+	buffer       chan CmdBuffer
+	cmd          map[string]Cmd
+	aofBuffer    chan<- redcon.Command
+	returnCmd    map[string]struct{}
+	returnBuffer <-chan interface{}
 }
 
 type Cmd struct {
-	f       func(conn redcon.Conn, args [][]byte)
+	f0      func(args [][]byte)
+	f       func(conn redcon.Conn, result interface{})
 	argvMin int
 	argvMax int
 }
 
 func New(ab chan<- redcon.Command) *Server {
+	var empty struct{}
 	s := &Server{
 		scheme:    "gedis",
 		host:      "127.0.0.1",
@@ -39,6 +43,10 @@ func New(ab chan<- redcon.Command) *Server {
 		buffer:    make(chan CmdBuffer, 0),
 		cmd:       make(map[string]Cmd),
 		aofBuffer: ab,
+		returnCmd: map[string]struct{}{
+			"get": empty, "setnx": empty, "del": empty, "rpush": empty, "llen": empty,
+			"rpop": empty, "lpop": empty, "sadd": empty, "smembers": empty, "sismember": empty,
+		},
 	}
 	return s
 }
@@ -46,13 +54,10 @@ func New(ab chan<- redcon.Command) *Server {
 func (s *Server) Start(ctx context.Context) {
 	log.Printf("started server at %s", s.addr)
 
-	s.registerCmds()
+	s.register()
 
 	rs := redcon.NewServerNetwork("tcp", s.addr,
 		func(conn redcon.Conn, cmd redcon.Command) {
-			if s.aofBuffer != nil {
-				s.aofBuffer <- cmd
-			}
 			s.ExecCommand(conn, cmd)
 		}, func(conn redcon.Conn) bool {
 			log.Printf("accept: %s", conn.RemoteAddr())
