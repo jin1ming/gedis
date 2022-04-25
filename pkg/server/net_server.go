@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"github.com/jin1ming/Gedis/pkg/config"
+	"github.com/jin1ming/Gedis/pkg/db"
 	"github.com/tidwall/redcon"
 	"log"
 	"strconv"
@@ -23,17 +24,19 @@ type Server struct {
 	cmd          map[string]Cmd
 	aofBuffer    chan<- redcon.Command
 	returnCmd    map[string]struct{}
+	aofCmd       map[string]struct{}
 	returnBuffer <-chan interface{}
+	chanPool     *ChanPool
 }
 
 type Cmd struct {
-	f0      func(args [][]byte)
-	f       func(conn redcon.Conn, result interface{})
+	f       func(conn redcon.Conn, cp db.CmdPackage)
 	argvMin int
 	argvMax int
+	ch      chan interface{}
 }
 
-func New(ab chan<- redcon.Command) *Server {
+func NewServer(ab chan<- redcon.Command) *Server {
 	var empty struct{}
 	s := &Server{
 		scheme:    "gedis",
@@ -47,6 +50,11 @@ func New(ab chan<- redcon.Command) *Server {
 			"get": empty, "setnx": empty, "del": empty, "rpush": empty, "llen": empty,
 			"rpop": empty, "lpop": empty, "sadd": empty, "smembers": empty, "sismember": empty,
 		},
+		aofCmd: map[string]struct{}{
+			"set": empty, "expire": empty, "setnx": empty, "del": empty, "rpush": empty,
+			"rpop": empty, "lpop": empty, "sadd": empty, "smembers": empty, "sismember": empty,
+		},
+		chanPool: NewChanPool(),
 	}
 	return s
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/jin1ming/Gedis/pkg/cli"
 	"github.com/jin1ming/Gedis/pkg/config"
+	"github.com/jin1ming/Gedis/pkg/db"
 	"github.com/jin1ming/Gedis/pkg/ps"
 	"github.com/jin1ming/Gedis/pkg/server"
 	"github.com/tidwall/redcon"
@@ -18,7 +19,6 @@ import (
 var buildVersion = "0.0.1"
 
 func main() {
-	runtime.LockOSThread()
 
 	configFile := "../config/gedis.yaml"
 	if len(os.Args) > 0 && strings.Contains(os.Args[0], ".yaml") {
@@ -47,6 +47,10 @@ func main() {
 		cancel()
 	}()
 
+	go func() {
+		db.GetDB().Work()
+	}()
+
 	var aofBuffer chan redcon.Command
 	if cfg.Append.AppendOnly {
 		aofService := ps.NewAOFService()
@@ -55,7 +59,7 @@ func main() {
 		go aofService.Start(ctx)
 	}
 
-	s := server.New(aofBuffer)
+	s := server.NewServer(aofBuffer)
 	s.Start(ctx)
 
 }

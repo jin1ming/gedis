@@ -3,7 +3,7 @@ package ps
 import (
 	"bufio"
 	"context"
-	"fmt"
+	"github.com/jin1ming/Gedis/pkg/db"
 	"github.com/jin1ming/Gedis/pkg/event"
 	"github.com/jin1ming/Gedis/pkg/utils"
 	"github.com/tidwall/redcon"
@@ -41,7 +41,7 @@ var _ PersistentStorageService = &AOFService{}
 
 func NewAOFService() *AOFService {
 	aof := AOFService{
-		ChBuffer: make(chan redcon.Command, 4096),
+		ChBuffer: make(chan redcon.Command, 1024),
 		survive:  true,
 		filePath: path.Join(utils.GetHomeDir(), "gedis.aof"),
 	}
@@ -50,9 +50,16 @@ func NewAOFService() *AOFService {
 }
 
 func (aof *AOFService) LoadLocalData() {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println(err)
+		}
+	}()
+
 	aofFile, err := os.Open(aof.filePath)
 	if err != nil {
 		log.Println("Aof file failed to open. ->LoadLocalData")
+		return
 	}
 
 	defer func() {
@@ -62,20 +69,21 @@ func (aof *AOFService) LoadLocalData() {
 	reader := bufio.NewReader(aofFile)
 	for {
 		data, _, err := reader.ReadLine()
-		if len(data) == 0 {
-			continue
-		}
+
 		if err == io.EOF {
 			break
 		} else if err != nil {
 			log.Fatalln("Aof file failed to load.")
 		}
+		if len(data) == 0 {
+			continue
+		}
 		if data[0] != '*' || len(data) == 1 {
-			log.Println("the header of data is not \"*\" + number.")
+			log.Fatalln("the header of data is not \"*\" + number.")
 		}
 		argsNum, err := strconv.Atoi(strings.TrimSpace(string(data[1:])))
 		if err != nil {
-			log.Println(err)
+			log.Fatalln(err)
 		}
 		var args [][]byte
 		for i := 0; i < argsNum; i++ {
@@ -87,8 +95,10 @@ func (aof *AOFService) LoadLocalData() {
 			}
 			args = append(args, a)
 		}
-		for _, v := range args {
-			fmt.Println(string(v))
+
+		db.GetDB().ExecQueue <- db.CmdPackage{
+			Args: args,
+			Ch:   nil,
 		}
 	}
 }

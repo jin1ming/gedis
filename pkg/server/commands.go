@@ -7,23 +7,23 @@ import (
 )
 
 func (s *Server) registerCmd(names []string, argcMin int, argcMax int,
-	f0 func(args [][]byte), f func(conn redcon.Conn, result interface{})) {
+	f func(conn redcon.Conn, cp db.CmdPackage)) {
 
 	c := Cmd{
-		f0:      f0,
 		f:       f,
 		argvMin: argcMin,
 		argvMax: argcMax,
 	}
 
 	for _, name := range names {
-		name = strings.ToLower(name)
+		//name = strings.ToLower(name)
 		s.cmd[name] = c
 	}
 }
 
 func (s *Server) ExecCommand(conn redcon.Conn, cmd redcon.Command) {
-	c, ok := s.cmd[strings.ToLower(string(cmd.Args[0]))]
+	method := strings.ToLower(string(cmd.Args[0]))
+	c, ok := s.cmd[method]
 	if !ok {
 		conn.WriteError("ERR unknown command '" + string(cmd.Args[0]) + "'")
 		return
@@ -33,103 +33,73 @@ func (s *Server) ExecCommand(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 	if s.aofBuffer != nil {
-		s.aofBuffer <- cmd
+		if _, ok = s.aofCmd[method]; ok {
+			s.aofBuffer <- cmd
+		}
 	}
-	c.f0(cmd.Args)
-	var result interface{}
-	if _, ok = s.returnCmd[string(cmd.Args[0])]; ok {
-		result = <-s.returnBuffer
+	var ch chan interface{}
+	if _, ok = s.returnCmd[method]; ok {
+		ch = s.chanPool.Get()
 	}
-	c.f(conn, result)
+	cmd.Args[0] = []byte(method)
+	cp := db.CmdPackage{Args: cmd.Args, Ch: ch}
+	c.f(conn, cp)
 }
 
 func (s *Server) register() {
-	DB := db.GetDB()
 	var ps redcon.PubSub
 
-	s.registerCmd([]string{"ping"}, 0, 0, func(args [][]byte) {
-	}, func(conn redcon.Conn, result interface{}) {
+	s.registerCmd([]string{"ping"}, 0, 0, func(conn redcon.Conn, _ db.CmdPackage) {
 		conn.WriteString("PONG")
 	})
-	s.registerCmd([]string{"quit", "exit"}, 0, 0, func(args [][]byte) {
-	}, func(conn redcon.Conn, result interface{}) {
+	s.registerCmd([]string{"quit", "exit"}, 0, 0, func(conn redcon.Conn, _ db.CmdPackage) {
 		conn.WriteString("OK")
 	})
-	s.registerCmd([]string{"set"}, 3, 3, func(args [][]byte) {
-		DB.Set(args...)
-	}, func(conn redcon.Conn, result interface{}) {
-		conn.WriteString("OK")
-	})
-	s.registerCmd([]string{"get"}, 2, 2, func(args [][]byte) {
-		conn
-	}, func(conn redcon.Conn, result interface{}) {
-		val, ok := DB.Get(args...)
-		if !ok {
-			conn.WriteNull()
-		} else {
-			conn.WriteBulk(val)
-		}
-	})
-	s.registerCmd([]string{"expire"}, 3, 3, func(conn redcon.Conn, args [][]byte) {
-		num := DB.Expire(args...)
-		conn.WriteInt(num)
-	})
-	s.registerCmd([]string{"setex"}, 4, 4, func(conn redcon.Conn, args [][]byte) {
-		DB.SetEx(args...)
-		conn.WriteString("OK")
-	})
-	s.registerCmd([]string{"setnx"}, 3, 3, func(conn redcon.Conn, args [][]byte) {
-		num := DB.SetNx(args...)
-		conn.WriteInt(num)
-	})
-	s.registerCmd([]string{"del"}, 2, 2, func(conn redcon.Conn, args [][]byte) {
-		num := DB.Del(args...)
-		conn.WriteInt(num)
-	})
-	s.registerCmd([]string{"rpush"}, 3, 0, func(conn redcon.Conn, args [][]byte) {
-		l := DB.RPush(args...)
-		conn.WriteInt(l)
-	})
-	s.registerCmd([]string{"llen"}, 2, 2, func(conn redcon.Conn, args [][]byte) {
-		l := DB.LLen(args...)
-		conn.WriteInt(l)
-	})
-	s.registerCmd([]string{"rpop", "lpop"}, 2, 2, func(conn redcon.Conn, args [][]byte) {
-		res := DB.RLPop(args...)
-		if res == nil {
-			conn.WriteNull()
-		} else {
-			conn.WriteBulk(res)
-		}
-	})
-	s.registerCmd([]string{"sadd"}, 3, 0, func(conn redcon.Conn, args [][]byte) {
-		num := DB.SAdd(args...)
-		conn.WriteInt(num)
-	})
-	s.registerCmd([]string{"smembers"}, 2, 2, func(conn redcon.Conn, args [][]byte) {
-		res := DB.SMembers(args...)
-		if res == nil {
-			conn.WriteNull()
-		} else {
-			conn.WriteAny(res)
-		}
-	})
-	s.registerCmd([]string{"sismember"}, 3, 3, func(conn redcon.Conn, args [][]byte) {
-		num := DB.SisMember(args...)
-		conn.WriteInt(num)
-	})
+	s.registerCmd([]string{"set"}, 3, 3, callBackOk)
+	s.registerCmd([]string{"get"}, 2, 2, callBackBytes)
+	s.registerCmd([]string{"expire"}, 3, 3, callBackInt)
+	s.registerCmd([]string{"setex"}, 4, 4, callBackOk)
+	s.registerCmd([]string{"setnx"}, 3, 3, callBackInt)
+	s.registerCmd([]string{"del"}, 2, 2, callBackInt)
+	s.registerCmd([]string{"rpush"}, 3, 0, callBackInt)
+	s.registerCmd([]string{"llen"}, 2, 2, callBackInt)
+	s.registerCmd([]string{"rpop", "lpop"}, 2, 2, callBackBytes)
+	s.registerCmd([]string{"sadd"}, 3, 0, callBackInt)
+	s.registerCmd([]string{"smembers"}, 2, 2, callBackBytes)
+	s.registerCmd([]string{"sismember"}, 3, 3, callBackInt)
 	// TODO: 订阅模式待实现
-	s.registerCmd([]string{"publish"}, 3, 3, func(conn redcon.Conn, args [][]byte) {
-		conn.WriteInt(ps.Publish(string(args[1]), string(args[2])))
+	s.registerCmd([]string{"publish"}, 3, 3, func(conn redcon.Conn, cp db.CmdPackage) {
+		conn.WriteInt(ps.Publish(string(cp.Args[1]), string(cp.Args[2])))
 	})
-	s.registerCmd([]string{"subscribe", "psubscribe"}, 2, 0, func(conn redcon.Conn, args [][]byte) {
-		command := strings.ToLower(string(args[0]))
-		for i := 1; i < len(args); i++ {
+	s.registerCmd([]string{"subscribe", "psubscribe"}, 2, 0, func(conn redcon.Conn, cp db.CmdPackage) {
+		command := strings.ToLower(string(cp.Args[0]))
+		for i := 1; i < len(cp.Args); i++ {
 			if command == "psubscribe" {
-				ps.Psubscribe(conn, string(args[i]))
+				ps.Psubscribe(conn, string(cp.Args[i]))
 			} else {
-				ps.Subscribe(conn, string(args[i]))
+				ps.Subscribe(conn, string(cp.Args[i]))
 			}
 		}
 	})
+}
+
+func callBackInt(conn redcon.Conn, cp db.CmdPackage) {
+	db.GetDB().ExecQueue <- cp
+	val := <-cp.Ch
+	conn.WriteInt(val.(int))
+}
+
+func callBackBytes(conn redcon.Conn, cp db.CmdPackage) {
+	db.GetDB().ExecQueue <- cp
+	val := <-cp.Ch
+	if val == nil {
+		conn.WriteNull()
+	} else {
+		conn.WriteBulk(val.([]byte))
+	}
+}
+
+func callBackOk(conn redcon.Conn, cp db.CmdPackage) {
+	db.GetDB().ExecQueue <- cp
+	conn.WriteString("OK")
 }
