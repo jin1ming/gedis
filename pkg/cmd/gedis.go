@@ -20,9 +20,6 @@ import (
 var buildVersion = "0.0.1"
 
 func main() {
-	//go func() {
-	//	log.Fatalln(http.ListenAndServe(":6060", nil))
-	//}()
 
 	configFile := "../config/gedis.yaml"
 	if len(os.Args) > 0 && strings.Contains(os.Args[0], ".yaml") {
@@ -57,10 +54,10 @@ func main() {
 
 	var aofBuffer []chan redcon.Command
 	if cfg.Append.AppendOnly {
-		aofService := ps.NewAOFService()
-		aofBuffer = aofService.ChBuffer
-		aofService.LoadLocalData()
-		go aofService.Start(ctx)
+		aof := ps.NewAOFService()
+		aofBuffer = aof.ChBuffer
+		aof.LoadLocalData()
+		go aof.Start(ctx)
 	}
 
 	s := server.NewServer(aofBuffer)

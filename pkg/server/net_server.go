@@ -4,9 +4,11 @@ import (
 	"context"
 	"github.com/jin1ming/Gedis/pkg/config"
 	"github.com/jin1ming/Gedis/pkg/db"
+	"github.com/jin1ming/Gedis/pkg/ps"
 	"github.com/tidwall/redcon"
 	"log"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -26,7 +28,8 @@ type Server struct {
 	returnCmd    map[string]struct{}
 	aofCmd       map[string]struct{}
 	returnBuffer <-chan interface{}
-	chanPool     *ChanPool
+	chanPool     *sync.Pool
+	aof          *ps.AOFService
 }
 
 type Cmd struct {
@@ -36,16 +39,15 @@ type Cmd struct {
 	ch      chan interface{}
 }
 
-func NewServer(ab []chan redcon.Command) *Server {
+func NewServer(aofBuffer []chan redcon.Command) *Server {
 	var empty struct{}
 	s := &Server{
-		scheme:    "gedis",
-		host:      "127.0.0.1",
-		protocol:  "resp3",
-		addr:      config.GetConfig().Base.Bind + ":" + strconv.Itoa(config.GetConfig().Base.Port),
-		buffer:    make(chan CmdBuffer, 0),
-		cmd:       make(map[string]Cmd),
-		aofBuffer: ab,
+		scheme:   "gedis",
+		host:     "127.0.0.1",
+		protocol: "resp3",
+		addr:     config.GetConfig().Base.Bind + ":" + strconv.Itoa(config.GetConfig().Base.Port),
+		buffer:   make(chan CmdBuffer, 0),
+		cmd:      make(map[string]Cmd),
 		returnCmd: map[string]struct{}{
 			"get": empty, "setnx": empty, "del": empty, "rpush": empty, "llen": empty,
 			"rpop": empty, "lpop": empty, "sadd": empty, "smembers": empty, "sismember": empty,
@@ -54,7 +56,8 @@ func NewServer(ab []chan redcon.Command) *Server {
 			"set": empty, "expire": empty, "setnx": empty, "del": empty, "rpush": empty,
 			"rpop": empty, "lpop": empty, "sadd": empty, "smembers": empty, "sismember": empty,
 		},
-		chanPool: NewChanPool(),
+		chanPool:  NewChanPool(),
+		aofBuffer: aofBuffer,
 	}
 	return s
 }

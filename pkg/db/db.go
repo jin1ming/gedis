@@ -6,6 +6,7 @@ import (
 	"github.com/jin1ming/Gedis/pkg/data_struct"
 	"github.com/jin1ming/Gedis/pkg/event"
 	"hash"
+	"hash/crc32"
 	"hash/fnv"
 	"runtime"
 	"strconv"
@@ -89,13 +90,15 @@ func (d *DB) workOneCore(index uint32) {
 }
 
 func (d *DB) Hash(bytes []byte) uint32 {
-	d.hash32.Reset()
-	_, err := d.hash32.Write(bytes)
-	if err != nil {
-		panic(err)
-	}
-	h := d.hash32.Sum32() % d.UseCpuNum
-	return h
+	//d.hash32.Reset()
+	//_, err := d.hash32.Write(bytes)
+	//if err != nil {
+	//	panic(err)
+	//}
+	//h := d.hash32.Sum32() % d.UseCpuNum
+	//
+	//return h
+	return crc32.ChecksumIEEE(bytes) % d.UseCpuNum
 }
 
 func (d *DB) Set(index uint32, args ...[]byte) interface{} {

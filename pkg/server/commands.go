@@ -37,11 +37,12 @@ func (s *Server) ExecCommand(conn redcon.Conn, cmd redcon.Command) {
 			d := db.GetDB()
 			index := d.Hash(cmd.Args[1])
 			s.aofBuffer[index] <- cmd
+			//s.aof.WriteCmd(index, cmd.Args)
 		}
 	}
 	var ch chan interface{}
 	if _, ok = s.returnCmd[method]; ok {
-		ch = s.chanPool.Get()
+		ch = s.chanPool.Get().(chan interface{})
 	}
 	cmd.Args[0] = []byte(method)
 	cp := db.CmdPackage{Args: cmd.Args, Ch: ch}

@@ -5,7 +5,6 @@ import (
 	"context"
 	"github.com/jin1ming/Gedis/pkg/config"
 	"github.com/jin1ming/Gedis/pkg/db"
-	"github.com/jin1ming/Gedis/pkg/event"
 	"github.com/tidwall/redcon"
 	"io"
 	"log"
@@ -33,6 +32,7 @@ type AOFService struct {
 	aofFile  []*os.File
 	survive  bool
 	ChBuffer []chan redcon.Command
+	writer   []*bufio.Writer
 	mu       sync.Mutex
 	filePath []string
 }
@@ -44,6 +44,7 @@ func NewAOFService() *AOFService {
 	aof := AOFService{
 		aofFile:  make([]*os.File, d.UseCpuNum),
 		ChBuffer: make([]chan redcon.Command, d.UseCpuNum),
+		writer:   make([]*bufio.Writer, d.UseCpuNum),
 		survive:  true,
 	}
 
@@ -55,12 +56,24 @@ func NewAOFService() *AOFService {
 	return &aof
 }
 
+type EveryScheduler struct {
+	Interval time.Duration
+}
+
+func (s *EveryScheduler) Next(prev time.Time) time.Time {
+	return prev.Add(s.Interval)
+}
+
 func (aof *AOFService) LoadLocalData() {
+	wg := sync.WaitGroup{}
+	wg.Add(len(aof.filePath))
 	for i := range aof.filePath {
 		go func(index uint32) {
 			aof.loadOneData(index)
 		}(uint32(i))
+		wg.Done()
 	}
+	wg.Wait()
 }
 
 func (aof *AOFService) loadOneData(index uint32) {
@@ -138,13 +151,8 @@ func (aof *AOFService) Start(ctx context.Context) {
 }
 
 func (aof *AOFService) work() {
-	tw := event.GetGlobalTimingWheel()
-
 	for i := 0; i < len(aof.aofFile); i++ {
 		go func(index uint32) {
-			tw.AfterFunc(1*time.Second, func() {
-				_ = aof.aofFile[index].Sync()
-			})
 			aof.workOne(index)
 		}(uint32(i))
 	}
@@ -156,8 +164,9 @@ func (aof *AOFService) workOne(index uint32) {
 	if err != nil {
 		log.Fatalln("Aof file failed to open. -> work")
 	}
-
+	aof.writer[index] = bufio.NewWriter(aof.aofFile[index])
 	defer func() {
+		_ = aof.aofFile[index].Sync()
 		_ = aof.aofFile[index].Close()
 	}()
 
@@ -177,11 +186,20 @@ func (aof *AOFService) workOne(index uint32) {
 			aof.writeLine(index, []byte("$"+strconv.Itoa(len(a))))
 			aof.writeLine(index, a)
 		}
+		_ = aof.writer[index].Flush()
+	}
+}
+
+func (aof *AOFService) WriteCmd(index uint32, args [][]byte) {
+	aof.writeLine(index, []byte("*"+strconv.Itoa(len(args))))
+	for _, a := range args {
+		aof.writeLine(index, []byte("$"+strconv.Itoa(len(a))))
+		aof.writeLine(index, a)
 	}
 }
 
 func (aof *AOFService) writeLine(index uint32, line []byte) {
-	_, err := aof.aofFile[index].Write(append(line, '\n'))
+	_, err := aof.writer[index].Write(append(line, '\n'))
 	if err != nil {
 		log.Fatalln("AOFService can't write:", err)
 	}

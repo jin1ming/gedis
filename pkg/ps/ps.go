@@ -8,5 +8,5 @@ type PersistentStorageService interface {
 	LoadLocalData()
 	work()
 	Start(ctx context.Context)
-	stop()
+	//stop()
 }
