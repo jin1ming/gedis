@@ -34,7 +34,9 @@ func (s *Server) ExecCommand(conn redcon.Conn, cmd redcon.Command) {
 	}
 	if s.aofBuffer != nil {
 		if _, ok = s.aofCmd[method]; ok {
-			s.aofBuffer <- cmd
+			d := db.GetDB()
+			index := d.Hash(cmd.Args[1])
+			s.aofBuffer[index] <- cmd
 		}
 	}
 	var ch chan interface{}
@@ -84,13 +86,17 @@ func (s *Server) register() {
 }
 
 func callBackInt(conn redcon.Conn, cp db.CmdPackage) {
-	db.GetDB().ExecQueue <- cp
+	d := db.GetDB()
+	index := d.Hash(cp.Args[1])
+	d.ExecQueue[index] <- cp
 	val := <-cp.Ch
 	conn.WriteInt(val.(int))
 }
 
 func callBackBytes(conn redcon.Conn, cp db.CmdPackage) {
-	db.GetDB().ExecQueue <- cp
+	d := db.GetDB()
+	index := d.Hash(cp.Args[1])
+	d.ExecQueue[index] <- cp
 	val := <-cp.Ch
 	if val == nil {
 		conn.WriteNull()
@@ -100,6 +106,8 @@ func callBackBytes(conn redcon.Conn, cp db.CmdPackage) {
 }
 
 func callBackOk(conn redcon.Conn, cp db.CmdPackage) {
-	db.GetDB().ExecQueue <- cp
+	d := db.GetDB()
+	index := d.Hash(cp.Args[1])
+	d.ExecQueue[index] <- cp
 	conn.WriteString("OK")
 }

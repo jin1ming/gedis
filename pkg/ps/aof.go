@@ -3,14 +3,14 @@ package ps
 import (
 	"bufio"
 	"context"
+	"github.com/jin1ming/Gedis/pkg/config"
 	"github.com/jin1ming/Gedis/pkg/db"
 	"github.com/jin1ming/Gedis/pkg/event"
-	"github.com/jin1ming/Gedis/pkg/utils"
 	"github.com/tidwall/redcon"
 	"io"
 	"log"
 	"os"
-	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,33 +30,50 @@ import (
 */
 
 type AOFService struct {
-	aofFile  *os.File
+	aofFile  []*os.File
 	survive  bool
-	ChBuffer chan redcon.Command
+	ChBuffer []chan redcon.Command
 	mu       sync.Mutex
-	filePath string
+	filePath []string
 }
 
 var _ PersistentStorageService = &AOFService{}
 
 func NewAOFService() *AOFService {
+	d := db.GetDB()
 	aof := AOFService{
-		ChBuffer: make(chan redcon.Command, 1024),
+		aofFile:  make([]*os.File, d.UseCpuNum),
+		ChBuffer: make([]chan redcon.Command, d.UseCpuNum),
 		survive:  true,
-		filePath: path.Join(utils.GetHomeDir(), "gedis.aof"),
 	}
 
+	aofDir := config.Dir()
+	for i := range aof.aofFile {
+		aof.ChBuffer[i] = make(chan redcon.Command, 1024)
+		aof.filePath = append(aof.filePath, filepath.Join(aofDir, "gedis"+strconv.Itoa(i)+".aof"))
+	}
 	return &aof
 }
 
 func (aof *AOFService) LoadLocalData() {
+	for i := range aof.filePath {
+		go func(index uint32) {
+			aof.loadOneData(index)
+		}(uint32(i))
+	}
+}
+
+func (aof *AOFService) loadOneData(index uint32) {
 	defer func() {
 		if err := recover(); err != nil {
 			log.Println(err)
 		}
 	}()
-
-	aofFile, err := os.Open(aof.filePath)
+	_, err := os.Stat(aof.filePath[index])
+	if err != nil {
+		return
+	}
+	aofFile, err := os.Open(aof.filePath[index])
 	if err != nil {
 		log.Println("Aof file failed to open. ->LoadLocalData")
 		return
@@ -96,7 +113,7 @@ func (aof *AOFService) LoadLocalData() {
 			args = append(args, a)
 		}
 
-		db.GetDB().ExecQueue <- db.CmdPackage{
+		db.GetDB().ExecQueue[index] <- db.CmdPackage{
 			Args: args,
 			Ch:   nil,
 		}
@@ -106,12 +123,7 @@ func (aof *AOFService) LoadLocalData() {
 func (aof *AOFService) Start(ctx context.Context) {
 	log.Println("AOFService is running...")
 
-	go aof.work()
-
-	tw := event.GetGlobalTimingWheel()
-	tw.AfterFunc(1*time.Second, func() {
-		_ = aof.aofFile.Sync()
-	})
+	aof.work()
 
 	for {
 		select {
@@ -126,18 +138,31 @@ func (aof *AOFService) Start(ctx context.Context) {
 }
 
 func (aof *AOFService) work() {
+	tw := event.GetGlobalTimingWheel()
+
+	for i := 0; i < len(aof.aofFile); i++ {
+		go func(index uint32) {
+			tw.AfterFunc(1*time.Second, func() {
+				_ = aof.aofFile[index].Sync()
+			})
+			aof.workOne(index)
+		}(uint32(i))
+	}
+}
+
+func (aof *AOFService) workOne(index uint32) {
 	var err error
-	aof.aofFile, err = os.OpenFile(aof.filePath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
+	aof.aofFile[index], err = os.OpenFile(aof.filePath[index], os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
 		log.Fatalln("Aof file failed to open. -> work")
 	}
 
 	defer func() {
-		_ = aof.aofFile.Close()
+		_ = aof.aofFile[index].Close()
 	}()
 
 	for {
-		info := <-aof.ChBuffer
+		info := <-aof.ChBuffer[index]
 		if len(info.Args) == 0 {
 			aof.mu.Lock()
 			if aof.survive == false {
@@ -147,23 +172,25 @@ func (aof *AOFService) work() {
 			continue
 		}
 
-		aof.writeLine([]byte("*" + strconv.Itoa(len(info.Args))))
+		aof.writeLine(index, []byte("*"+strconv.Itoa(len(info.Args))))
 		for _, a := range info.Args {
-			aof.writeLine([]byte("$" + strconv.Itoa(len(a))))
-			aof.writeLine(a)
+			aof.writeLine(index, []byte("$"+strconv.Itoa(len(a))))
+			aof.writeLine(index, a)
 		}
 	}
 }
 
-func (aof *AOFService) writeLine(line []byte) {
-	_, err := aof.aofFile.Write(append(line, '\n'))
+func (aof *AOFService) writeLine(index uint32, line []byte) {
+	_, err := aof.aofFile[index].Write(append(line, '\n'))
 	if err != nil {
 		log.Fatalln("AOFService can't write:", err)
 	}
 }
 
 func (aof *AOFService) stop() {
-	close(aof.ChBuffer)
+	for i := range aof.ChBuffer {
+		close(aof.ChBuffer[i])
+	}
 	aof.mu.Lock()
 	defer aof.mu.Lock()
 	aof.survive = false

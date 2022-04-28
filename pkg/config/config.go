@@ -27,6 +27,10 @@ func setConfigDir() {
 	if configDir == "" {
 		configDir = filepath.Join(utils.GetHomeDir(), DefaultConfigDIr)
 	}
+	_, err := os.Stat(configDir)
+	if err != nil && os.IsNotExist(err) {
+		os.Mkdir(configDir, os.ModeDir)
+	}
 }
 
 func resetConfigDir() {

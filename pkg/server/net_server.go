@@ -22,7 +22,7 @@ type Server struct {
 	addr         string
 	buffer       chan CmdBuffer
 	cmd          map[string]Cmd
-	aofBuffer    chan<- redcon.Command
+	aofBuffer    []chan redcon.Command
 	returnCmd    map[string]struct{}
 	aofCmd       map[string]struct{}
 	returnBuffer <-chan interface{}
@@ -36,7 +36,7 @@ type Cmd struct {
 	ch      chan interface{}
 }
 
-func NewServer(ab chan<- redcon.Command) *Server {
+func NewServer(ab []chan redcon.Command) *Server {
 	var empty struct{}
 	s := &Server{
 		scheme:    "gedis",
