@@ -90,6 +90,9 @@ func (d *DB) workOneCore(index uint32) {
 }
 
 func (d *DB) Hash(bytes []byte) uint32 {
+	if d.UseCpuNum == 1 {
+		return 0
+	}
 	//d.hash32.Reset()
 	//_, err := d.hash32.Write(bytes)
 	//if err != nil {
@@ -98,6 +101,7 @@ func (d *DB) Hash(bytes []byte) uint32 {
 	//h := d.hash32.Sum32() % d.UseCpuNum
 	//
 	//return h
+
 	return crc32.ChecksumIEEE(bytes) % d.UseCpuNum
 }
 

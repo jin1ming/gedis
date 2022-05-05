@@ -3,6 +3,7 @@ package server
 import (
 	"github.com/jin1ming/Gedis/pkg/db"
 	"github.com/tidwall/redcon"
+	"runtime"
 	"strings"
 )
 
@@ -90,6 +91,7 @@ func callBackInt(conn redcon.Conn, cp db.CmdPackage) {
 	d := db.GetDB()
 	index := d.Hash(cp.Args[1])
 	d.ExecQueue[index] <- cp
+	runtime.Gosched()
 	val := <-cp.Ch
 	conn.WriteInt(val.(int))
 }
@@ -98,6 +100,7 @@ func callBackBytes(conn redcon.Conn, cp db.CmdPackage) {
 	d := db.GetDB()
 	index := d.Hash(cp.Args[1])
 	d.ExecQueue[index] <- cp
+	runtime.Gosched()
 	val := <-cp.Ch
 	if val == nil {
 		conn.WriteNull()

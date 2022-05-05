@@ -21,6 +21,10 @@ var buildVersion = "0.0.1"
 
 func main() {
 
+	//go func() {
+	//	http.ListenAndServe("0.0.0.0:6060", nil)
+	//}()
+
 	configFile := "../config/gedis.yaml"
 	if len(os.Args) > 0 && strings.Contains(os.Args[0], ".yaml") {
 		configFile = os.Args[0]
