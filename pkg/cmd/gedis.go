@@ -9,7 +9,9 @@ import (
 	"github.com/jin1ming/Gedis/pkg/server"
 	"github.com/tidwall/redcon"
 	"log"
-	//_ "net/http/pprof"
+	"net/http"
+
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
@@ -21,9 +23,9 @@ var buildVersion = "0.0.1"
 
 func main() {
 
-	//go func() {
-	//	http.ListenAndServe("0.0.0.0:6060", nil)
-	//}()
+	go func() {
+		http.ListenAndServe("0.0.0.0:6060", nil)
+	}()
 
 	configFile := "../config/gedis.yaml"
 	if len(os.Args) > 0 && strings.Contains(os.Args[0], ".yaml") {

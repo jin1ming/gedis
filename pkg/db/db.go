@@ -34,7 +34,8 @@ var db *DB
 
 func init() {
 	db = new(DB)
-	cpuNum := runtime.NumCPU()
+	//cpuNum := runtime.NumCPU()
+	cpuNum := 1
 	if cpuNum > 2 {
 		cpuNum = cpuNum / 2
 	}
